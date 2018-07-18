@@ -1,270 +1,171 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <title>Color Manipulation Open Layers Example</title>
-    <link rel="stylesheet" href="https://openlayers.org/en/v4.6.4/css/ol.css" type="text/css">
-    <!-- The line below is only needed for old environments like Internet Explorer and Android 4.x -->
-    <script src="https://cdn.polyfill.io/v2/polyfill.min.js?features=requestAnimationFrame,Element.prototype.classList,URL"></script>
-    <script src="https://openlayers.org/en/v4.6.4/build/ol.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.4.4/proj4.js"></script>
-    <style>
-      table.controls td {
-        text-align: center;
-        padding: 2px 5px;
-        min-width: 60px;
-      }
-    </style>
-  </head>
-  <body>
-    <div style="float:left;width:50%;height:500px"><div style="height:100%;margin:5px" id="map" class="map"></div>
-    <table class="controls">
-      <tr>
-        <td>hue</td>
-        <td><span id="hueOut"></span>°</td>
-        <td><input id="hue" type="range" min="-180" max="180" value="0"/></td>
-      </tr>
-      <tr>
-        <td>chroma</td>
-        <td><span id="chromaOut"></span> %</td>
-        <td><input id="chroma" type="range" min="0" max="100" value="100"/></td>
-      </tr>
-      <tr>
-        <td>lightness</td>
-        <td><span id="lightnessOut"></span> %</td>
-        <td><input id="lightness" type="range" min="0" max="100" value="100"/></td>
-      </tr>
-    </table>
-    <script>
+<head>
+	
+	<title>ELF gray and green - Leaflet demo</title>
 
-      /**
-       * Color manipulation functions below are adapted from
-       * https://github.com/d3/d3-color.
-       */
-      var Xn = 0.950470;
-      var Yn = 1;
-      var Zn = 1.088830;
-      var t0 = 4 / 29;
-      var t1 = 6 / 29;
-      var t2 = 3 * t1 * t1;
-      var t3 = t1 * t1 * t1;
-      var twoPi = 2 * Math.PI;
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.3.1/dist/leaflet.css" integrity="sha512-Rksm5RenBEKSKFjgI3a41vrjkw4EVPlJ3+OiI65vTjIdo9brlAacEuKOiQ5OFh7cOI1bkDwLqdLw3Zg0cRJAAQ==" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.3.1/dist/leaflet.js" integrity="sha512-/Nsx9X4HebavoBvEBuyp3I7od5tA0UzAxs+j83KgC8PU0kgB4XiK4Lfe4y4cgBtaRJQEIFCW+oC506aPT2L1zw==" crossorigin=""></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.4.4/proj4.js" crossorigin=""></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4leaflet/1.0.2/proj4leaflet.js" crossorigin=""></script>
+<script src="https://rawgithub.com/mylen/leaflet.TileLayer.WMTS/master/leaflet-tilelayer-wmts.js"></script>
 
-      /**
-       * Convert an RGB pixel into an HCL pixel.
-       * @param {Array.<number>} pixel A pixel in RGB space.
-       * @return {Array.<number>} A pixel in HCL space.
-       */
-      function rgb2hcl(pixel) {
-        var red = rgb2xyz(pixel[0]);
-        var green = rgb2xyz(pixel[1]);
-        var blue = rgb2xyz(pixel[2]);
-
-        var x = xyz2lab(
-            (0.4124564 * red + 0.3575761 * green + 0.1804375 * blue) / Xn);
-        var y = xyz2lab(
-            (0.2126729 * red + 0.7151522 * green + 0.0721750 * blue) / Yn);
-        var z = xyz2lab(
-            (0.0193339 * red + 0.1191920 * green + 0.9503041 * blue) / Zn);
-
-        var l = 116 * y - 16;
-        var a = 500 * (x - y);
-        var b = 200 * (y - z);
-
-        var c = Math.sqrt(a * a + b * b);
-        var h = Math.atan2(b, a);
-        if (h < 0) {
-          h += twoPi;
+</head>
+<body>
+<div id="map_original" style="width: 600px; height: 400px;"></div>
+<div id="map_gray" style="width: 600px; height: 400px;"></div>
+<div id="map_green" style="width: 600px; height: 400px;"></div>
+<script>
+//fuction to calculate gray
+L.TileLayer.Grayscale = L.TileLayer.extend({
+    options: {
+        quotaRed: 21,
+        quotaGreen: 171,
+        quotaBlue: 8,
+        quotaDividerTune: 0,
+        quotaDivider: function() {
+            return this.quotaRed + this.quotaGreen + this.quotaBlue + this.quotaDividerTune;
         }
+    },
 
-        pixel[0] = h;
-        pixel[1] = c;
-        pixel[2] = l;
+    initialize: function (url, options) {
+        options = options || {}
+        options.crossOrigin = true;
+        L.TileLayer.prototype.initialize.call(this, url, options);
 
-        return pixel;
-      }
-
-
-      /**
-       * Convert an HCL pixel into an RGB pixel.
-       * @param {Array.<number>} pixel A pixel in HCL space.
-       * @return {Array.<number>} A pixel in RGB space.
-       */
-      function hcl2rgb(pixel) {
-        var h = pixel[0];
-        var c = pixel[1];
-        var l = pixel[2];
-
-        var a = Math.cos(h) * c;
-        var b = Math.sin(h) * c;
-
-        var y = (l + 16) / 116;
-        var x = isNaN(a) ? y : y + a / 500;
-        var z = isNaN(b) ? y : y - b / 200;
-
-        y = Yn * lab2xyz(y);
-        x = Xn * lab2xyz(x);
-        z = Zn * lab2xyz(z);
-
-        pixel[0] = xyz2rgb(3.2404542 * x - 1.5371385 * y - 0.4985314 * z);
-        pixel[1] = xyz2rgb(-0.9692660 * x + 1.8760108 * y + 0.0415560 * z);
-        pixel[2] = xyz2rgb(0.0556434 * x - 0.2040259 * y + 1.0572252 * z);
-
-        return pixel;
-      }
-
-      function xyz2lab(t) {
-        return t > t3 ? Math.pow(t, 1 / 3) : t / t2 + t0;
-      }
-
-      function lab2xyz(t) {
-        return t > t1 ? t * t * t : t2 * (t - t0);
-      }
-
-      function rgb2xyz(x) {
-        return (x /= 255) <= 0.04045 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
-      }
-
-      function xyz2rgb(x) {
-        return 255 * (x <= 0.0031308 ?
-          12.92 * x : 1.055 * Math.pow(x, 1 / 2.4) - 0.055);
-      }
-//projection
-            var ol;
-            var proj4;
-
-            //Start: projection & tileGrid & matrix definitions
-            proj4.defs("EPSG:3035", "+proj=laea +lat_0=52 +lon_0=10 +x_0=4321000 +y_0=3210000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
-
-            var proj = new ol.proj.Projection({
-                code: 'EPSG:3035',
-                axisOrientation: 'enu',
-                units: 'm',
-                extent: [2426378.013200, 1528101.261800, 6293974.621500, 5446513.522200]
-            });
-
-            var projectionExtent = proj.getExtent();
-            var size = ol.extent.getWidth(projectionExtent) / 256;
-            var resolutions = new Array(20);
-            var matrixIds = new Array(20);
-            for (var z = 0; z < 20; ++z) {
-                resolutions[z] = size / Math.pow(2, z);
-                matrixIds[z] = z;
-            }
-
-            var nbrOfRequest1 = 0;
-      //End: projection & tileGrid definitions
-//data
-      var osm = new ol.source.OSM();
-
-      var elf = new ol.source.WMTS({
-                     attributions: 'Tiles: European Location Framework',
-                     url: 'http://193.166.25.14/elsbasemap/wmts',
-                     layer: 'elf_topographic_basemap',
-                     matrixSet: 'laeaeurope',
-                     format: 'image/png',
-                     crossOrigin: '',
-                     projection: proj,
-                     crossOrigin: null,
-                     tileGrid: new ol.tilegrid.WMTS({
-                         origin: ol.extent.getTopLeft(projectionExtent),
-                         resolutions: resolutions,
-                         matrixIds: matrixIds
-                     }),
-                     style: 'default',
-                     wrapX: true
-                 });
-
-      var kartverket = new ol.source.WMTS({
-                     attributions: 'Tiles: Norges grunnkart',
-                     url: 'http://opencache.statkart.no/gatekeeper/gk/gk.open_wmts?',
-                     layer: 'norges_grunnkart',
-                     matrixSet: 'EPSG:3035',
-                     format: 'image/png',
-                     crossOrigin: '',
-                     projection: proj,
-                     crossOrigin: null,
-                     tileGrid: new ol.tilegrid.WMTS({
-                         origin: ol.extent.getTopLeft(projectionExtent),
-                         resolutions: resolutions,
-                         matrixIds: matrixIds
-                     }),
-                     style: 'default',
-                     wrapX: true
-                 });
-
-
-      var raster = new ol.source.Raster({
-        sources: [elf],
-        operation: function(pixels, data) {
-          var hcl = rgb2hcl(pixels[0]);
-
-          var h = hcl[0] + Math.PI * data.hue / 180;
-          if (h < 0) {
-            h += twoPi;
-          } else if (h > twoPi) {
-            h -= twoPi;
-          }
-          hcl[0] = h;
-
-          hcl[1] *= (data.chroma / 100);
-          hcl[2] *= (data.lightness / 100);
-
-          return hcl2rgb(hcl);
-        },
-        lib: {
-          rgb2hcl: rgb2hcl,
-          hcl2rgb: hcl2rgb,
-          rgb2xyz: rgb2xyz,
-          lab2xyz: lab2xyz,
-          xyz2lab: xyz2lab,
-          xyz2rgb: xyz2rgb,
-          Xn: Xn,
-          Yn: Yn,
-          Zn: Zn,
-          t0: t0,
-          t1: t1,
-          t2: t2,
-          t3: t3,
-          twoPi: twoPi
-        }
-      });
-
-      var controls = {};
-
-      raster.on('beforeoperations', function(event) {
-        var data = event.data;
-        for (var id in controls) {
-          data[id] = Number(controls[id].value);
-        }
-      });
-
-      var map = new ol.Map({
-        layers: [
-          new ol.layer.Image({
-            source: raster,
-            crossOrigin: ''
-          })
-        ],
-        target: 'map',
-        view: new ol.View({
-                    center: [4334064,4116273],
-                    projection: proj,
-                    zoom: 11
-                })
-      });
-
-      var controlIds = ['hue', 'chroma', 'lightness'];
-      controlIds.forEach(function(id) {
-        var control = document.getElementById(id);
-        var output = document.getElementById(id + 'Out');
-        control.addEventListener('input', function() {
-          output.innerText = control.value;
-          raster.changed();
+        this.on('tileload', function(e) {
+            this._makeGrayscale(e.tile);
         });
-        output.innerText = control.value;
-        controls[id] = control;
-      });
-    </script>
-  </body>
+    },
+
+    _createTile: function () {
+        var tile = L.TileLayer.prototype._createTile.call(this);
+        tile.crossOrigin = "Anonymous";
+        return tile;
+    },
+
+    _makeGrayscale: function (img) {
+        if (img.getAttribute('data-grayscaled'))
+            return;
+
+                img.crossOrigin = '';
+        var canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        var ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0);
+
+        var imgd = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        var pix = imgd.data;
+        for (var i = 0, n = pix.length; i < n; i += 4) {
+                        pix[i] = pix[i + 1] = pix[i + 2] = (this.options.quotaRed * pix[i] + this.options.quotaGreen * pix[i + 1] + this.options.quotaBlue * pix[i + 2]) / this.options.quotaDivider();
+        }
+        ctx.putImageData(imgd, 0, 0);
+        img.setAttribute('data-grayscaled', true);
+        img.src = canvas.toDataURL();
+    }
+});
+
+L.tileLayer.grayscale = function (url, options) {
+    return new L.TileLayer.Grayscale(url, options);
+};
+
+// function to calculate green
+L.TileLayer.Green = L.TileLayer.extend({
+    options: {
+        quotaRed: 21,
+        quotaGreen: 104,
+        quotaBlue: 8,
+        quotaDividerTune: 0,
+        quotaDivider: function() {
+            return this.quotaRed + this.quotaGreen + this.quotaBlue + this.quotaDividerTune;
+        }
+    },
+
+    initialize: function (url, options) {
+        options = options || {}
+        options.crossOrigin = true;
+        L.TileLayer.prototype.initialize.call(this, url, options);
+
+        this.on('tileload', function(e) {
+            this._makeGreen(e.tile);
+        });
+    },
+
+    _createTile: function () {
+        var tile = L.TileLayer.prototype._createTile.call(this);
+        tile.crossOrigin = "Anonymous";
+        return tile;
+    },
+
+    _makeGreen: function (img) {
+        if (img.getAttribute('data-green'))
+            return;
+
+                img.crossOrigin = '';
+        var canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        var ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0);
+
+        var imgd = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        var pix = imgd.data;
+        for (var i = 0, n = pix.length; i < n; i += 4) {
+                        pix[i + 1]= (this.options.quotaRed * pix[i] + this.options.quotaGreen * pix[i + 1] + this.options.quotaBlue * pix[i + 2]) / (0.85*this.options.quotaDivider());
+        }
+        ctx.putImageData(imgd, 0, 0);
+        img.setAttribute('data-green', true);
+        img.src = canvas.toDataURL();
+    }
+});
+
+L.tileLayer.green = function (url, options) {
+    return new L.TileLayer.Green(url, options);
+};
+
+//projection stuff
+            var proj4;
+            var proj4leaflet;
+    
+var crs = new L.Proj.CRS('EPSG:3035',
+  '+proj=laea +lat_0=52 +lon_0=10 +x_0=4321000 +y_0=3210000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
+  {
+    resolutions: [15107.79925117, 7553.89962559, 3776.94981279, 1888.47490640, 944.23745320, 472.11872660, 236.05936330, 118.02968165, 59.01484082, 29.50742041, 14.75371021, 7.376855103, 3.688427552, 1.844213776, 0.922106888, 0.461053444, 0.230526722, 0.115263361, 0.05763168, 0.02881584],
+    origin: [2426378.0132, 5446513.5222]
+  })
+
+//render maps
+   // var map1 = L.map('map_original', {crs:crs}).setView([4334064,4116273], 11);
+     //        L.tileLayer('http://193.166.25.14/mapcache/tms/1.0.0/elf_topographic_basemap@laeaeurope/{z}/{x}/{y}.png', {
+       //          attribution: '<a href="http://www.kartverket.no/">Kartverket</a>'
+         //    }).addTo(map1);
+//connecting to elf wms works but grayscaling that does not
+//cant connect to any form of elf tiles 178 177 wmts tms noting
+// gk.open_wmts does not work either
+//changing using othe crs does not work
+
+    var map1 = L.map('map_original').setView([48.14,0.25], 7);
+            L.tileLayer('http://193.166.25.14/elsbasemap/wmts?service=wmts&request=GetTile&version=1.0.0&layer=elf_topographic_basemap&style=default&tilematrixset=laeaeurope&tilematrix={z}&tilerow={y}&tilecol={x}&format=image%2Fpng', {
+                attribution: '<a href="http://www.kartverket.no/">Kartverket</a>'
+            }).addTo(map1);
+             
+          
+    var map2 = L.map('map_gray').setView([48.14,0.25], 7);
+            L.tileLayer.grayscale('http://193.166.25.14/elsbasemap/wmts?service=wmts&request=GetTile&version=1.0.0&layer=elf_topographic_basemap&style=default&tilematrixset=laeaeurope&tilematrix={z}&tilerow={y}&tilecol={x}&format=image%2Fpng', {
+                attribution: '<a href="http://www.kartverket.no/">Kartverket</a>'
+            }).addTo(map2);
+
+
+    var map3 = L.map('map_green').setView([48.14,0.25], 7);
+            L.tileLayer.green('http://193.166.25.14/elsbasemap/wmts?service=wmts&request=GetTile&version=1.0.0&layer=elf_topographic_basemap&style=default&tilematrixset=laeaeurope&tilematrix={z}&tilerow={y}&tilecol={x}&format=image%2Fpng', {
+                attribution: '<a href="http://www.kartverket.no/">Kartverket</a>'
+            }).addTo(map3);
+
+</script>
+
+</body>
 </html>
